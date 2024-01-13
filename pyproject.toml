@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "espuma"
+version = "0.0.1"
+authors = [
+  { name="Edwin Saavedra C.", email="esaavedrac@u.northwestern.edu" },
+]
+description = "Utilities for OpenFOAM in Python"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pyvista"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/edsaac/foamy"
+"Bug Tracker" = "https://github.com/edsaac/foamy/issues"
