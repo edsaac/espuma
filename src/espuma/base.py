@@ -8,7 +8,16 @@ from typing import Any
 import os
 from shutil import rmtree
 
+from math import isclose
+
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
+run_solver = partial(
+    subprocess.run,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+    text=True,
+    encoding="utf-8",
+)
 
 
 @dataclass(slots=True)
@@ -243,21 +252,79 @@ class Case_Directory(Directory):
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
 
-    @classmethod
-    def clone_from_template(cls, template: Case_Directory, path: str|Path, overwrite:bool = False):
-        
-        if not isinstance(template, Case_Directory):
-            raise TypeError(
-                f"{template} must be a espuma.Case_Directory object"
+    @cached_property
+    def list_times(self):
+        return sorted([float(t) for t in self._foamListTimes()])
+
+    def is_finished(self):
+        if self.system.controlDict["stopAt"] == "endTime":
+            end_time = float(self.system.controlDict["endTime"])
+            latest_time = self.list_times[-1]
+
+            return isclose(end_time, latest_time)
+
+        else:
+            raise TypeError(  # > Find a better exception
+                "Case not set up to stop at an endTime."
             )
-        
+
+    def _blockMesh(self):
+        command = ["blockMesh"]
+
+        value = run(command, cwd=self.path)
+
+        if value.returncode != 0:
+            raise OSError(
+                " ".join(command)
+                + "\n\n"
+                + value.stdout.strip()
+                + "\n\n"
+                + value.stderr.strip()
+            )
+
+        return True
+
+    def _runCase(self):
+        application = self.system.controlDict["application"]
+        command = [application]
+
+        value = run_solver(command, cwd=self.path)
+
+        if value.returncode == 0:
+            print(f"{application} finished successfully!")
+
+        else:
+            raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
+
+        return True
+
+    def _foamListTimes(self, remove: bool = False):
+        command = ["foamListTimes"]
+
+        if remove:
+            command.append("-rm")
+
+        value = run(command, cwd=self.path)
+
+        if value.returncode == 0:
+            return value.stdout.strip().splitlines()
+
+        else:
+            raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
+
+    @classmethod
+    def clone_from_template(
+        cls, template: Case_Directory, path: str | Path, overwrite: bool = False
+    ):
+        if not isinstance(template, Case_Directory):
+            raise TypeError(f"{template} must be a espuma.Case_Directory object")
+
         path = Path(path)
 
         if path.exists():
             if not overwrite:
                 raise OSError(
-                    f"{path} already exists.\n"
-                    "Maybe you want to set overwrite=True?" 
+                    f"{path} already exists.\n" "Maybe you want to set overwrite=True?"
                 )
 
             if path.is_dir():
@@ -265,15 +332,17 @@ class Case_Directory(Directory):
 
             elif path.is_file():
                 path.unlink()
-        
+
         cls._foamCloneCase(template.path, path)
-        
+
         return Case_Directory(path)
 
     @classmethod
-    def _foamCloneCase(cls, source_case:str|Path, target_case):
-        command = ["foamCloneCase", str(source_case), str(target_case)]
-        value = run(command)
+    def _foamCloneCase(cls, source_case: str | Path, target_case: str | Path):
+        value = run(["foamCloneCase", str(source_case), str(target_case)])
+
+        if value.returncode != 0:
+            raise OSError("S")
 
 
 def main():

@@ -86,3 +86,16 @@ def test_getters():
 
     fv_solution["solvers.p.solver"] = "PCG"
     assert fv_solution["solvers.p.solver"] == "PCG"
+
+def test_run_solver():
+    assert of_case._blockMesh()
+
+    assert of_case.is_finished() == False
+    assert of_case._runCase()
+
+    assert all(
+        t in of_case.list_times
+        for t in [0.1, 0.2, 0.3, 0.4, 0.5]
+    )
+
+    assert of_case.is_finished() == True
