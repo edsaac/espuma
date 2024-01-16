@@ -4,6 +4,7 @@ import subprocess
 from functools import partial, cached_property, cache
 from typing import Any
 from collections import UserDict
+import os 
 
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
 
@@ -52,36 +53,35 @@ class OpenFoam_Dict(dict):
     __getitem__ methods during initialization.
     """
 
-    def __getitem__(self, key: Any) -> Any:
-        print(f"Calling the {type(self).__name__} getittem for {key}")
-        return super().__getitem__(key)
-    
+    def __getitem__(self, key: str) -> Any:
+        # print(f"Calling the {type(self).__name__} getittem for {key}")
+        if "." in key:
+            prekey, poskey = key.split(".", maxsplit=1)
+            return self[prekey][poskey]
+        else:
+            return super().__getitem__(key)
+        
     def __setitem__(self, key: Any, value: Any) -> None:
-        return self.__setitem__(key, value)
-    
-    # def _foamDictionary_set_value(self, entry, value):
-    #     """
-    #     entry corresponds to the name of the dictionary
-    #     """
-    #     command = ["foamDictionary", str(self.path), "-entry", entry, "-set", str(value)]
-    #     value = run(command, cwd=self.path.parent)
-
-    #     if value.returncode != 0:
-    #         raise ValueError(" ".join(command), value.stderr.strip())
+        raise NotImplementedError(
+            f"{type(self).__name__} does not accept setting items."
+            "Use OpenFoam_File setter instead"
+        )
 
     def __repr__(self) -> str:
         return super().__repr__()
     
 class OpenFoam_File(File):
+    """
+    Base class for openFOAM files.
+    """
     def __init__(self, path: str | Path):
         super().__init__(path)
         
     def __setitem__(self, key: Any, item: Any) -> Any:
-            print("This was the entry", key)
-            return None
+            return self._foamDictionary_set_value(key, item)
 
     def __getitem__(self, key: Any) -> Any:
-            print(f"Calling the {type(self).__name__} getittem for {key}")
+            # print(f"Calling the {type(self).__name__} getittem for {key}")
             return self.foamDictionary_generate_dict(key)
 
     def _foamDictionary_get_value(self, entry):
@@ -112,6 +112,16 @@ class OpenFoam_File(File):
 
         return foamEntry
 
+    def _foamDictionary_set_value(self, entry, value):
+        """
+        Entry corresponds to the name.key of the dictionary
+        """
+        command = ["foamDictionary", str(self.path), "-entry", entry, "-set", str(value)]
+        value = run(command, cwd=self.path.parent)
+
+        if value.returncode != 0:
+            raise ValueError(" ".join(command), value.stderr.strip())
+
     @cache
     def items(self):
         return {k: self[k] for k in self.keys()}
@@ -131,14 +141,11 @@ class OpenFoam_File(File):
             return value.stdout.strip().split()
         
 class Dict_File(OpenFoam_File):
+    """
+    Class for openFOAM files than store directories.
+    """
     def __init__(self, path: str | Path):
         super().__init__(path)
-
-    # def __setitem__(self, key:str, value) -> None:
-    #     if isinstance(value, Dict_File): 
-    #         self[key] = "key.value"
-    #     else:
-    #         self._foamDictionary_set_value(key, value)
     
 
 class Field_File(OpenFoam_File):
@@ -147,11 +154,8 @@ class Field_File(OpenFoam_File):
 
     @cached_property
     def dimensions(self):
-        command = ["foamDictionary", str(self.path), "-entry", "dimensions", "-value"]
-        value = run(command, cwd=str(self.path.parent))
-
-        if value.returncode == 0:
-            return Dimension.from_bracketed(value.stdout)
+        value = self._foamDictionary_get_value("dimensions")
+        return Dimension.from_bracketed(value)
 
     @cached_property
     def boundaryField(self):
@@ -260,3 +264,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+else:
+    assert "FOAM_APP" in os.environ
