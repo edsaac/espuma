@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import subprocess
 from functools import partial, cached_property, cache
 from typing import Any
+from collections import UserDict
 
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
 
@@ -43,31 +44,45 @@ class File:
         return str(self.path)
 
     def __repr__(self) -> str:
-        return str(self)
+        return f"{type(self).__name__}({self.path})"
 
+class OpenFoam_Dict(dict):
+    """
+    Inhereting from dict to avoid triggering __setitem__ and
+    __getitem__ methods during initialization.
+    """
 
+    def __getitem__(self, key: Any) -> Any:
+        print(f"Calling the {type(self).__name__} getittem for {key}")
+        return super().__getitem__(key)
+    
+    def __setitem__(self, key: Any, value: Any) -> None:
+        return self.__setitem__(key, value)
+    
+    # def _foamDictionary_set_value(self, entry, value):
+    #     """
+    #     entry corresponds to the name of the dictionary
+    #     """
+    #     command = ["foamDictionary", str(self.path), "-entry", entry, "-set", str(value)]
+    #     value = run(command, cwd=self.path.parent)
+
+    #     if value.returncode != 0:
+    #         raise ValueError(" ".join(command), value.stderr.strip())
+
+    def __repr__(self) -> str:
+        return super().__repr__()
+    
 class OpenFoam_File(File):
     def __init__(self, path: str | Path):
         super().__init__(path)
+        
+    def __setitem__(self, key: Any, item: Any) -> Any:
+            print("This was the entry", key)
+            return None
 
-    @property
-    def _keywords(self):
-        command = ["foamDictionary", str(self.path), "-keywords"]
-        value = run(command, cwd=self.path.parent)
-
-        if value.returncode == 0:
-            return value.stdout.strip().split()
-
-    @cached_property
-    def FoamFile(self):
-        return self.foamDictionary_generate_dict("FoamFile")
-
-    def _foamDictionary_set_value(self, entry, value):
-        command = ["foamDictionary", str(self.path), "-entry", entry, "-set", str(value)]
-        value = run(command, cwd=self.path.parent)
-
-        if value.returncode != 0:
-            raise ValueError(" ".join(command), value.stderr.strip())
+    def __getitem__(self, key: Any) -> Any:
+            print(f"Calling the {type(self).__name__} getittem for {key}")
+            return self.foamDictionary_generate_dict(key)
 
     def _foamDictionary_get_value(self, entry):
         command = ["foamDictionary", str(self.path), "-entry", entry, "-value"]
@@ -76,7 +91,7 @@ class OpenFoam_File(File):
         if value.returncode == 0:
             return value.stdout.strip()
         else:
-            raise ValueError(" ".join(command), value.stderr.strip())
+            raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
 
     def foamDictionary_generate_dict(self, entry: str | None = None):
         command = ["foamDictionary", str(self.path), "-keywords"]
@@ -86,33 +101,16 @@ class OpenFoam_File(File):
         output = run(command, cwd=self.path.parent)
 
         if output.returncode == 0:
-            foamEntry = {
-                k: self.foamDictionary_generate_dict(f"{entry}.{k}")
-                for k in output.stdout.strip().splitlines()
-            }
 
-            # foamEntry = Dict_File(self.path)
-            # for k in output.stdout.strip().splitlines():
-            #     foamEntry[k] = self.foamDictionary_generate_dict(f"{entry}.{k}")
+            foamEntry = OpenFoam_Dict(
+                    (k,self.foamDictionary_generate_dict(f"{entry}.{k}"))
+                    for k in output.stdout.strip().splitlines()
+            )
 
         else:
             foamEntry = self._foamDictionary_get_value(entry)
 
         return foamEntry
-
-
-class Dict_File(OpenFoam_File):
-    def __init__(self, path: str | Path):
-        super().__init__(path)
-
-    # def __setitem__(self, key:str, value) -> None:
-    #     if isinstance(value, Dict_File): 
-    #         self[key] = "key.value"
-    #     else:
-    #         self._foamDictionary_set_value(key, value)
-        
-    def __getitem__(self, key: str) -> Any:
-        return self.foamDictionary_generate_dict(key)
 
     @cache
     def items(self):
@@ -123,6 +121,24 @@ class Dict_File(OpenFoam_File):
 
     def values(self):
         return self.items().values()
+    
+    @cached_property
+    def _keywords(self):
+        command = ["foamDictionary", str(self.path), "-keywords"]
+        value = run(command, cwd=self.path.parent)
+
+        if value.returncode == 0:
+            return value.stdout.strip().split()
+        
+class Dict_File(OpenFoam_File):
+    def __init__(self, path: str | Path):
+        super().__init__(path)
+
+    # def __setitem__(self, key:str, value) -> None:
+    #     if isinstance(value, Dict_File): 
+    #         self[key] = "key.value"
+    #     else:
+    #         self._foamDictionary_set_value(key, value)
     
 
 class Field_File(OpenFoam_File):
@@ -160,6 +176,9 @@ class Directory:
 
     def __str__(self) -> str:
         return str(self.path)
+    
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path})"
 
     @property
     def _files(self):
@@ -183,7 +202,7 @@ class Constant_Directory(Directory):
     def __init__(self, path: str | Path):
         super().__init__(path)
 
-        ## Add file directories as properties
+        ## Add files in directory as properties
         for f in self._files:
             setattr(self, f.name, Dict_File(f))
 
@@ -207,7 +226,7 @@ class Case_Directory(Directory):
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
 
-
+    
 def main():
     PATH = "/home/edsaa/foam/cavity"
     d = Case_Directory(PATH)
