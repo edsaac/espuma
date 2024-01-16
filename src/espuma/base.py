@@ -98,6 +98,18 @@ class OpenFoam_File(File):
         # print(f"Calling the {type(self).__name__} getittem for {key}")
         return self.foamDictionary_generate_dict(key)
 
+    def __delitem__(self, key):
+        return self._foamDictionary_del_value(key)
+
+    def _foamDictionary_del_value(self, entry):
+        command = ["foamDictionary", str(self.path), "-entry", entry, "-remove"]
+        value = run(command, cwd=self.path.parent)
+
+        if value.returncode == 0:
+            return value.stdout.strip()
+        else:
+            raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
+
     def _foamDictionary_get_value(self, entry):
         command = ["foamDictionary", str(self.path), "-entry", entry, "-value"]
         value = run(command, cwd=self.path.parent)

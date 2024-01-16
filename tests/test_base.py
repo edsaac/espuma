@@ -1,6 +1,7 @@
-from espuma import Case_Directory
 import os
 from pathlib import Path
+import pytest
+from espuma import Case_Directory
 
 FOAM_TUTORIALS = os.environ["FOAM_TUTORIALS"]
 TEMPLATE = f"{FOAM_TUTORIALS}/incompressible/icoFoam/cavity/cavity"
@@ -93,6 +94,7 @@ def test_system_directory():
 def test_setters():
     fv_solution = of_case.system.fvSolution
 
+    # An existing key
     assert fv_solution["solvers.p.solver"] == "PCG"
 
     fv_solution["solvers.p.solver"] = "banana"
@@ -100,6 +102,14 @@ def test_setters():
 
     fv_solution["solvers.p.solver"] = "PCG"
     assert fv_solution["solvers.p.solver"] == "PCG"
+
+    # A whole new entry
+    fv_solution["solvers.p.coconut"] = "coconut"
+    assert fv_solution["solvers.p.coconut"] == "coconut"
+
+    del fv_solution["solvers.p.coconut"]
+    with pytest.raises(ValueError):
+        fv_solution["solvers.p.coconut"]
 
 
 def test_run_solver():
