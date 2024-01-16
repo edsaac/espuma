@@ -56,8 +56,8 @@ class OpenFoam_Dict(dict):
 
     def __setitem__(self, key: Any, value: Any) -> None:
         raise NotImplementedError(
-            f"{type(self).__name__} does not accept setting items."
-            "Use OpenFoam_File setter instead"
+            f"{type(self).__name__} does not accept setting items.\n"
+            "Use the OpenFoam_File setter instead"
         )
 
     def __repr__(self) -> str:
@@ -190,7 +190,7 @@ class Field_File(OpenFoam_File):
 
 class Directory:
     def __init__(self, path: str | Path):
-        path = Path(path)
+        path = Path(path).absolute()
 
         if not path.exists:
             raise FileNotFoundError(f"{path} does not exist")
@@ -252,13 +252,14 @@ class Case_Directory(Directory):
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
 
-    @cached_property
+    @property
     def list_times(self):
         return sorted([float(t) for t in self._foamListTimes()])
 
     def is_finished(self):
         if self.system.controlDict["stopAt"] == "endTime":
             end_time = float(self.system.controlDict["endTime"])
+            print(self.list_times)
             latest_time = self.list_times[-1]
 
             return isclose(end_time, latest_time)
@@ -299,7 +300,7 @@ class Case_Directory(Directory):
         return True
 
     def _foamListTimes(self, remove: bool = False):
-        command = ["foamListTimes"]
+        command = ["foamListTimes", "-withZero"]
 
         if remove:
             command.append("-rm")
