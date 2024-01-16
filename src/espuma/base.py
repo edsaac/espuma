@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from pathlib import Path
 from dataclasses import dataclass
 import subprocess
 from functools import partial, cached_property, cache
 from typing import Any
 import os
+from shutil import rmtree
 
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
 
@@ -239,6 +242,38 @@ class Case_Directory(Directory):
         self.zero = Zero_Directory(self.path / "0")
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
+
+    @classmethod
+    def clone_from_template(cls, template: Case_Directory, path: str|Path, overwrite:bool = False):
+        
+        if not isinstance(template, Case_Directory):
+            raise TypeError(
+                f"{template} must be a espuma.Case_Directory object"
+            )
+        
+        path = Path(path)
+
+        if path.exists():
+            if not overwrite:
+                raise OSError(
+                    f"{path} already exists.\n"
+                    "Maybe you want to set overwrite=True?" 
+                )
+
+            if path.is_dir():
+                rmtree(path)
+
+            elif path.is_file():
+                path.unlink()
+        
+        cls._foamCloneCase(template.path, path)
+        
+        return Case_Directory(path)
+
+    @classmethod
+    def _foamCloneCase(cls, source_case:str|Path, target_case):
+        command = ["foamCloneCase", str(source_case), str(target_case)]
+        value = run(command)
 
 
 def main():

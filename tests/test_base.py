@@ -1,8 +1,10 @@
-from espuma.base import Case_Directory
+from espuma import Case_Directory
 
-PATH = "/home/edsaa/foam/cavity"
-of_case = Case_Directory(PATH)
+TEMPLATE = "/home/edsaa/foam/cavity_tpl"
+of_tpl = Case_Directory(TEMPLATE)
 
+PATH = "/home/edsaa/foam/cavity_test"
+of_case = Case_Directory.clone_from_template(of_tpl, PATH, overwrite=True)
 
 def test_case_directory():
     assert str(of_case) == PATH
@@ -74,6 +76,13 @@ def test_system_directory():
 
 
 def test_getters():
-    fv_schemes = of_case.system.fvSchemes
+    fv_solution = of_case.system.fvSolution
 
-    assert str(fv_schemes) == f"{PATH}/system/fvSchemes"
+    assert str(fv_solution) == f"{PATH}/system/fvSolution"
+    assert fv_solution["solvers.p.solver"] == "PCG"
+    
+    fv_solution["solvers.p.solver"] = "banana"
+    assert fv_solution["solvers.p.solver"] == "banana"
+
+    fv_solution["solvers.p.solver"] = "PCG"
+    assert fv_solution["solvers.p.solver"] == "PCG"
