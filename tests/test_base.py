@@ -11,7 +11,6 @@ def test_case_directory():
 
 
 def test_zero_directory():
-
     assert getattr(of_case.zero, "p")
     assert getattr(of_case.zero, "U")
 
@@ -57,9 +56,10 @@ def test_constant_directory():
     assert str(constant) == f"{PATH}/constant"
 
     assert str(constant.transportProperties) == f"{PATH}/constant/transportProperties"
-    
+
     assert constant.transportProperties["FoamFile.class"] == "dictionary"
     assert constant.transportProperties["nu"] == "[ 0 2 -1 0 0 0 0 ] 0.01"
+
 
 def test_system_directory():
     system = of_case.system
