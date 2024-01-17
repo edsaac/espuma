@@ -410,18 +410,23 @@ class Case_Directory(Directory):
 
         print(f"{application} finished successfully!")
 
-    def _foamListTimes(self, remove: bool = False):
+    def _foamListTimes(self):
         command = ["foamListTimes", "-withZero"]
-
-        if remove:
-            command.append("-rm")
-
         value = run(command, cwd=self.path)
 
         if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
 
         return value.stdout.strip().splitlines()
+
+    def _foamListTimes_remove(self):
+        command = ["foamListTimes", "-rm"]
+        value = run(command, cwd=self.path)
+
+        if value.returncode != 0:
+            raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
+
+        print(" ".join(command) + " finished successfully!")
 
     @classmethod
     def clone_from_template(
@@ -450,10 +455,13 @@ class Case_Directory(Directory):
 
     @classmethod
     def _foamCloneCase(cls, source_case: str | Path, target_case: str | Path):
-        value = run(["foamCloneCase", str(source_case), str(target_case)])
+        command = ["foamCloneCase", str(source_case), str(target_case)]
+        value = run(command)
 
         if value.returncode != 0:
-            raise OSError("S")
+            raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
+
+        print(" ".join(command) + " finished successfully!")
 
 
 def main():
