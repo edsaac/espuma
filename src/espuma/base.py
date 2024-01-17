@@ -3,14 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass
 import subprocess
-from functools import partial, cached_property, cache
+from functools import partial, cached_property
 from typing import Any
 import os
 from shutil import rmtree
+from io import StringIO
 
 from math import isclose
 from pyvista import POpenFOAMReader
 
+### Run as subprocess: ###############################
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
 run_solver = partial(
     subprocess.run,
@@ -19,6 +21,7 @@ run_solver = partial(
     text=True,
     encoding="utf-8",
 )
+### Run as subprocess: ###############################
 
 
 @dataclass(slots=True, frozen=True)
@@ -34,7 +37,14 @@ class Dimension:
     @classmethod
     def from_bracketed(cls, text: str):
         return Dimension(
-            *[float(d) for d in text.strip().removeprefix("[").removesuffix("]").strip().split()]
+            *[
+                int(d)
+                for d in text.strip()
+                .removeprefix("[")
+                .removesuffix("]")
+                .strip()
+                .split()
+            ]
         )
 
     def __str__(self) -> str:
@@ -42,12 +52,17 @@ class Dimension:
 
     def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}(" 
-            + ", ".join([f"{k}={getattr(self, k)}" for k in self.__slots__ if getattr(self, k) != 0])
+            f"{type(self).__name__}("
+            + ", ".join(
+                [
+                    f"{k}={getattr(self, k)}"
+                    for k in self.__slots__
+                    if getattr(self, k) != 0
+                ]
+            )
             + ")"
         )
 
-        
 
 class OpenFoam_Dict(dict):
     """
@@ -77,6 +92,20 @@ class OpenFoam_Dict(dict):
 
     def __repr__(self) -> str:
         return super().__repr__()
+
+    def _repr_html_(self) -> str:
+        vreprs = [
+            v._repr_html_() if hasattr(v, "_repr_html_") else str(v)
+            for v in self.values()
+        ]
+
+        return (
+            "<ul>\n"
+            + "".join(
+                [f"<li><b>{k}:</b> {v}</li>\n" for k, v in zip(self.keys(), vreprs)]
+            )
+            + "</ul>"
+        )
 
 
 class File:
@@ -115,6 +144,16 @@ class OpenFoam_File(File):
 
     def __delitem__(self, key):
         return self._foamDictionary_del_value(key)
+
+    def _repr_html_(self):
+        return (
+            "<details open>\n"
+            f"<summary><b>{self.path.name}</b></summary>\n"
+            "<ul style='list-style: none;'>"
+            + "\n".join([f"<li>{k}</li>\n" for k in self.keys()])
+            + "\n</ul>\n"
+            "</details>\n"
+        )
 
     def _foamDictionary_del_value(self, entry):
         command = ["foamDictionary", str(self.path), "-entry", entry, "-remove"]
@@ -169,9 +208,8 @@ class OpenFoam_File(File):
         if value.returncode != 0:
             raise ValueError(" ".join(command), value.stderr.strip())
 
-    @cache
     def items(self):
-        return {k: self[k] for k in self.keys()}
+        return [(k, self[k]) for k in self.keys()]
 
     def keys(self):
         return self._keywords
@@ -195,6 +233,27 @@ class Dict_File(OpenFoam_File):
 
     def __init__(self, path: str | Path):
         super().__init__(path)
+
+    def _repr_html_(self):
+        with StringIO() as s:
+            s.write("<details open>\n")
+            s.write(f"<summary><b>{self.path.name}</b></summary>\n")
+            s.write("<ul style='list-style: none;'>\n")
+
+            for key, value in self.items():
+                if hasattr(value, "_repr_html_"):
+                    vrprs = value._repr_html_()
+                else:
+                    vrprs = repr(value)
+
+                s.write(f"<li><b>{key}</b>: {vrprs}</li>\n")
+
+            s.write("</ul>\n")
+            s.write("</details>\n")
+
+            html = s.getvalue()
+
+        return html
 
 
 class Field_File(OpenFoam_File):
@@ -232,6 +291,16 @@ class Directory:
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.path})"
+
+    def _repr_html_(self):
+        return (
+            "<details open>\n"
+            f"<summary><b>{self.path.name}</b></summary>\n"
+            "<ul>"
+            + "\n".join([f"<li>{f.name}</li>\n" for f in self._files])
+            + "\n</ul>\n"
+            "</details>\n"
+        )
 
     @property
     def _files(self):
@@ -279,13 +348,24 @@ class Case_Directory(Directory):
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
 
+    def _repr_html_(self):
+        return (
+            "<details open>\n"
+            f"<summary><b>{self.path.name}</b></summary>\n"
+            "<ul style='list-style: none;'>\n"
+            "<li>" + self.zero._repr_html_() + "</li>\n"
+            "<li>" + self.constant._repr_html_() + "</li>\n"
+            "<li>" + self.system._repr_html_() + "</li>\n"
+            "</ul>\n"
+            "</details>\n"
+        )
+
     def get_vtk_reader(self):
-        
         # Dummy file for Paraview visualization avoiding foamToVTK
         # Source: https://openfoamwiki.net/index.php?title=Case_Name_.foam_File&oldid=18024
         pvfoam = Path(self.path / "espuma.foam")
         pvfoam.touch()
-        
+
         return POpenFOAMReader(pvfoam)
 
     @property
@@ -293,17 +373,15 @@ class Case_Directory(Directory):
         return sorted([float(t) for t in self._foamListTimes()])
 
     def is_finished(self):
-        if self.system.controlDict["stopAt"] == "endTime":
-            end_time = float(self.system.controlDict["endTime"])
-            print(self.list_times)
-            latest_time = self.list_times[-1]
-
-            return isclose(end_time, latest_time)
-
-        else:
+        if self.system.controlDict["stopAt"] != "endTime":
             raise TypeError(  # > Find a better exception
                 "Case not set up to stop at an endTime."
             )
+
+        end_time = float(self.system.controlDict["endTime"])
+        latest_time = self.list_times[-1]
+
+        return isclose(end_time, latest_time)
 
     def _blockMesh(self):
         command = ["blockMesh"]
@@ -319,7 +397,7 @@ class Case_Directory(Directory):
                 + value.stderr.strip()
             )
 
-        return True
+        print("blockMesh finished successfully!")
 
     def _runCase(self):
         application = self.system.controlDict["application"]
@@ -327,13 +405,10 @@ class Case_Directory(Directory):
 
         value = run_solver(command, cwd=self.path)
 
-        if value.returncode == 0:
-            print(f"{application} finished successfully!")
-
-        else:
+        if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
 
-        return True
+        print(f"{application} finished successfully!")
 
     def _foamListTimes(self, remove: bool = False):
         command = ["foamListTimes", "-withZero"]
@@ -343,11 +418,10 @@ class Case_Directory(Directory):
 
         value = run(command, cwd=self.path)
 
-        if value.returncode == 0:
-            return value.stdout.strip().splitlines()
-
-        else:
+        if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
+
+        return value.stdout.strip().splitlines()
 
     @classmethod
     def clone_from_template(

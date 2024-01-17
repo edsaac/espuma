@@ -113,10 +113,14 @@ def test_setters():
 
 
 def test_run_solver():
-    assert of_case._blockMesh()
+
+    ## If is none, means that ended with code 0
+    assert of_case._blockMesh() is None
 
     assert of_case.is_finished() is False
-    assert of_case._runCase()
+    
+    ## If is none, means that ended with code 0
+    assert of_case._runCase() is None
 
     assert all(t in of_case.list_times for t in [0.1, 0.2, 0.3, 0.4, 0.5])
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [v 0.0.4] - 2024-01-17
+- Add `_repr_html_` for nicer jupyter notebook visualization
+- Update notebook examples
+
 ## [v 0.0.3] - 2024-01-17
 - Add `__delitem__` method
 - Add .foam file to case for vtk/pyvista hook
