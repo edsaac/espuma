@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "espuma"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   { name="Edwin Saavedra C.", email="esaavedrac@u.northwestern.edu" },
 ]
