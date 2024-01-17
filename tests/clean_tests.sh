@@ -1,0 +1,1 @@
+rm -r ./tests/pytest_cavity_base

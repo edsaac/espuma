@@ -121,3 +121,6 @@ def test_run_solver():
     assert all(t in of_case.list_times for t in [0.1, 0.2, 0.3, 0.4, 0.5])
 
     assert of_case.is_finished() is True
+
+def test_vtk_import():
+    assert of_case.get_vtk_reader()

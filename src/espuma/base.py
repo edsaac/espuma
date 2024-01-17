@@ -9,6 +9,7 @@ import os
 from shutil import rmtree
 
 from math import isclose
+from pyvista import POpenFOAMReader
 
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
 run_solver = partial(
@@ -20,11 +21,11 @@ run_solver = partial(
 )
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Dimension:
-    mass: int
-    length: int
-    time: int
+    mass: int = 0
+    length: int = 0
+    time: int = 0
     temperature: int = 0
     moles: int = 0
     current: int = 0
@@ -33,12 +34,20 @@ class Dimension:
     @classmethod
     def from_bracketed(cls, text: str):
         return Dimension(
-            *(text.strip().removeprefix("[").removesuffix("]").strip().split())
+            *[float(d) for d in text.strip().removeprefix("[").removesuffix("]").strip().split()]
         )
 
     def __str__(self) -> str:
         return f"[{self.mass} {self.length} {self.time} {self.temperature} {self.moles} {self.current} {self.luminous}]"
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(" 
+            + ", ".join([f"{k}={getattr(self, k)}" for k in self.__slots__ if getattr(self, k) != 0])
+            + ")"
+        )
+
+        
 
 class OpenFoam_Dict(dict):
     """
@@ -57,7 +66,13 @@ class OpenFoam_Dict(dict):
     def __setitem__(self, key: Any, value: Any) -> None:
         raise NotImplementedError(
             f"{type(self).__name__} does not accept setting items.\n"
-            "Use the OpenFoam_File setter instead"
+            "Use the OpenFoam_File __setitem__ instead"
+        )
+
+    def __delitem__(self, key: Any, value: Any) -> None:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not allow deleting items.\n"
+            "Use the OpenFoam_File __delitem__ instead"
         )
 
     def __repr__(self) -> str:
@@ -263,6 +278,15 @@ class Case_Directory(Directory):
         self.zero = Zero_Directory(self.path / "0")
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
+
+    def get_vtk_reader(self):
+        
+        # Dummy file for Paraview visualization avoiding foamToVTK
+        # Source: https://openfoamwiki.net/index.php?title=Case_Name_.foam_File&oldid=18024
+        pvfoam = Path(self.path / "espuma.foam")
+        pvfoam.touch()
+        
+        return POpenFOAMReader(pvfoam)
 
     @property
     def list_times(self):
