@@ -1,111 +1,109 @@
-from dataclasses import dataclass
 from pathlib import Path
 import xarray as xr
 import numpy as np
 import os
 import subprocess
+from dataclasses import dataclass
 
 from . import Case_Directory
 
 
 @dataclass(slots=True, frozen=True)
-class probePoint:
+class Point:
     x: float
     y: float
     z: float
 
 
-@dataclass
 class boundaryProbe:
     """
     Assumes that the contents of postProcessing probes have been parsed already
     with pointFiles.sh
     """
 
-    path_data: str | Path
-    path_time: str | Path
-    path_xyz: str | Path
+    def __init__(
+        self, path_data: str | Path, path_time: str | Path, path_xyz: str | Path
+    ):
+        self.path_data = Path(path_data)
+        self.path_time = Path(path_time)
+        self.path_xyz = Path(path_xyz)
 
-    def __post_init__(self):
-        for path in [self.path_data, self.path_time, self.path_xyz]:
-            if isinstance(path, str):
-                path = Path(path)
-
+    @property
+    def field_names(self):
         ## Get the number of probed fields
-        self.fields_names = self.path_data.stem.replace("points_", "").split("_")
-        self.n_fields = len(self.fields_names)
+        return self.path_data.stem.replace("points_", "").split("_")
 
-        ## Get the number of probes
-        self.get_probe_points()
-        self.n_probes = len(self.probes_points)
+    @property
+    def n_fields(self):
+        return len(self.field_names)
 
-        ## Get the timesteps
-        self.get_times()
+    @property
+    def probe_points(self):
+        with open(self.path_xyz) as f:
+            xyz = f.readlines()
+            xyz = [list(map(float, line.split())) for line in xyz]
 
-        ## Determine if vector or scalar data
-        self.set_dimensionality()
+        return [Point(*p) for p in xyz]
 
-        ## Load data arrays
-        self.parse_data()
+    @property
+    def n_probes(self):
+        return len(self.probe_points)
 
-    def infer_number_data_columns(self):
+    @property
+    def dimensionality(self):
         """Should be n_probes * n_fields * (1 or 3)"""
         with open(self.path_data) as f:
             first_line = f.readline().split()
-            self.n_cols = len(first_line)
+            n_cols = len(first_line)
 
-    def set_dimensionality(self):
-        self.infer_number_data_columns()
-
-        if self.n_cols == self.n_probes * self.n_fields:
-            self.dimensionality = "scalar"
-        elif self.n_cols == 3 * self.n_probes * self.n_fields:
-            self.dimensionality = "vector"
+        if n_cols == self.n_probes * self.n_fields:
+            return "scalar"
+        elif n_cols == 3 * self.n_probes * self.n_fields:
+            return "vector"
         else:
             raise RuntimeError("Field is neither vector nor scalar.")
 
-    def get_probe_points(self):
-        xyz = np.loadtxt(self.path_xyz)
-        if len(xyz.shape) == 1:
-            xyz = [xyz]
+    @property
+    def times(self):
+        return np.loadtxt(self.path_time)
 
-        self.probes_points = [probePoint(*coord) for coord in xyz]
-
-    def get_times(self):
-        self.list_of_times = np.loadtxt(self.path_time)
-
-    def parse_data(self):
+    @property
+    def array_data(self):
         full_data = np.loadtxt(self.path_data).T
 
         data = dict()
 
         if self.dimensionality == "scalar":
-            field_names_for_parsing = self.fields_names
+            field_names_for_parsing = self.field_names
             dimension_number = 1
 
         elif self.dimensionality == "vector":
             field_names_for_parsing = [
-                f"{field}{dim}" for field in self.fields_names for dim in [*"xyz"]
+                f"{field}{dim}" for field in self.field_names for dim in [*"xyz"]
             ]
             dimension_number = 3
 
         for i, field in enumerate(field_names_for_parsing):
             data[field] = xr.DataArray(
                 full_data[i :: self.n_fields * dimension_number],
-                dims=("probe", "time"),
-                coords={"probe": self.probes_points, "time": self.list_of_times},
+                dims=("probes", "time"),
+                coords={"probes": self.probe_points, "time": self.times},
             )
 
-        self.array_data = xr.Dataset(
-            data, coords={"time": self.list_of_times, "probes": self.probes_points}
+        return xr.Dataset(
+            data, coords={"time": self.times, "probes": self.probe_points}
         )
+
+    def _repr_html_(self):
+        return self.array_data._repr_html_()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path_data.name})"
 
 
 def _boundaryProbes_to_txt(of_case: Case_Directory):
     """
     Run pointFiles.sh on the case to parse the probe data into single files
-
-    A symlink to pointFiles.sh is located in the ~/bin folder.
 
     Parameterss
     ----------
@@ -153,7 +151,7 @@ def process_boundaryProbes(of_case: Case_Directory):
     f_time = processed_probes_path / "time.txt"
     f_xyz = processed_probes_path / "xyz.txt"
 
-    return [boundaryProbe(f, f_time, f_xyz) for f in files]
+    return {f.name: boundaryProbe(f, f_time, f_xyz) for f in files}
 
 
 def main():

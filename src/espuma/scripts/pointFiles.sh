@@ -15,7 +15,7 @@ INPUT_DIR=$1
 OUTPUT_DIR=$2
 
 # Reset output directory
-rm -r $OUTPUT_DIR
+rm -rf $OUTPUT_DIR
 mkdir -p $OUTPUT_DIR
 
 
