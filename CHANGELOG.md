@@ -1,6 +1,6 @@
 # Changelog
 
-## [v 0.0.6] - 2024-
+## [v 0.0.6] - 2024-01-18
 - Drop StringIO buffer building short _repr_html_
 - Add rough boundaryProbe management
 

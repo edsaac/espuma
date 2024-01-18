@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import xarray as xr
 import numpy as np
-import os 
+import os
 import subprocess
 
 from . import Case_Directory
@@ -100,6 +100,7 @@ class boundaryProbe:
             data, coords={"time": self.list_of_times, "probes": self.probes_points}
         )
 
+
 def _boundaryProbes_to_txt(of_case: Case_Directory):
     """
     Run pointFiles.sh on the case to parse the probe data into single files
@@ -121,14 +122,13 @@ def _boundaryProbes_to_txt(of_case: Case_Directory):
     """
 
     if "ESPUMA_SCRIPTS" in os.environ and os.name == "posix":
-        
         script_path = str(Path(os.environ["ESPUMA_SCRIPTS"]) / "pointFiles.sh")
-        
+
         ## Allow permisions
         subprocess.run(["chmod", "a+x", script_path])
 
         command = [
-            script_path, 
+            script_path,
             str(of_case.path / "postProcessing/boundaryProbes"),
             str(of_case.path / "postProcessing/espuma_BoundaryProbes"),
         ]
@@ -140,13 +140,14 @@ def _boundaryProbes_to_txt(of_case: Case_Directory):
 
         print(" ".join(command) + " finished successfully!")
 
+
 def process_boundaryProbes(of_case: Case_Directory):
     """
     Read the processed boundaryProbes and parse them in xarrays
 
     """
     _boundaryProbes_to_txt(of_case)
-    
+
     processed_probes_path = of_case.path / "postProcessing/espuma_BoundaryProbes/"
     files = processed_probes_path.glob("points_*")
     f_time = processed_probes_path / "time.txt"
@@ -154,8 +155,10 @@ def process_boundaryProbes(of_case: Case_Directory):
 
     return [boundaryProbe(f, f_time, f_xyz) for f in files]
 
+
 def main():
     pass
+
 
 if __name__ == "__main__":
     main()
