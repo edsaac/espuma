@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "espuma"
-version = "0.0.4"
+version = "0.0.6"
 authors = [
   { name="Edwin Saavedra C.", email="esaavedrac@u.northwestern.edu" },
 ]
@@ -18,9 +18,17 @@ classifiers = [
 ]
 
 dependencies = [
-    "pyvista"
+    "numpy",
+    "xarray",
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/edsaac/foamy"
 "Bug Tracker" = "https://github.com/edsaac/foamy/issues"
+
+[tool.hatch.build]
+exclude = [
+    "/tests",
+    "/examples",
+    ".gitignore",
+]

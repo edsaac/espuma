@@ -1,5 +1,12 @@
 # Changelog
 
+## [v 0.0.6] - 2024-
+- Drop StringIO buffer building short _repr_html_
+- Add rough boundaryProbe management
+
+## [v 0.0.5] - 2024-01-18
+- Defaulting foamDictionary to -disableFunctionEntries option to avoid dynamicCode compilation
+
 ## [v 0.0.4] - 2024-01-17
 - Add `_repr_html_` for nicer jupyter notebook visualization
 - Update notebook examples

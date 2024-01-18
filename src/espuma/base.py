@@ -7,10 +7,11 @@ from functools import partial, cached_property
 from typing import Any
 import os
 from shutil import rmtree
-from io import StringIO
 
 from math import isclose
 from pyvista import POpenFOAMReader
+
+import warnings
 
 ### Run as subprocess: ###############################
 run = partial(subprocess.run, capture_output=True, text=True, encoding="utf-8")
@@ -156,7 +157,14 @@ class OpenFoam_File(File):
         )
 
     def _foamDictionary_del_value(self, entry):
-        command = ["foamDictionary", str(self.path), "-entry", entry, "-remove"]
+        command = [
+            "foamDictionary",
+            str(self.path),
+            "-entry",
+            entry,
+            "-remove",
+            "-disableFunctionEntries",
+        ]
         value = run(command, cwd=self.path.parent)
 
         if value.returncode == 0:
@@ -165,7 +173,14 @@ class OpenFoam_File(File):
             raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
 
     def _foamDictionary_get_value(self, entry):
-        command = ["foamDictionary", str(self.path), "-entry", entry, "-value"]
+        command = [
+            "foamDictionary",
+            str(self.path),
+            "-entry",
+            entry,
+            "-value",
+            "-disableFunctionEntries",
+        ]
         value = run(command, cwd=self.path.parent)
 
         if value.returncode == 0:
@@ -174,7 +189,12 @@ class OpenFoam_File(File):
             raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
 
     def foamDictionary_generate_dict(self, entry: str | None = None):
-        command = ["foamDictionary", str(self.path), "-keywords"]
+        command = [
+            "foamDictionary",
+            str(self.path),
+            "-keywords",
+            "-disableFunctionEntries",
+        ]
         if entry:
             command.extend(("-entry", entry))
 
@@ -202,6 +222,7 @@ class OpenFoam_File(File):
             entry,
             "-set",
             str(value),
+            "-disableFunctionEntries",
         ]
         value = run(command, cwd=self.path.parent)
 
@@ -219,7 +240,12 @@ class OpenFoam_File(File):
 
     @cached_property
     def _keywords(self):
-        command = ["foamDictionary", str(self.path), "-keywords"]
+        command = [
+            "foamDictionary",
+            str(self.path),
+            "-keywords",
+            "-disableFunctionEntries",
+        ]
         value = run(command, cwd=self.path.parent)
 
         if value.returncode == 0:
@@ -235,25 +261,24 @@ class Dict_File(OpenFoam_File):
         super().__init__(path)
 
     def _repr_html_(self):
-        with StringIO() as s:
-            s.write("<details open>\n")
-            s.write(f"<summary><b>{self.path.name}</b></summary>\n")
-            s.write("<ul style='list-style: none;'>\n")
+        head = (
+            "<details open>\n"
+            f"<summary><b>{self.path.name}</b></summary>\n"
+            "<ul style='list-style: none;'>\n"
+        )
 
-            for key, value in self.items():
-                if hasattr(value, "_repr_html_"):
-                    vrprs = value._repr_html_()
-                else:
-                    vrprs = repr(value)
+        body = ""
+        for key, value in self.items():
+            if hasattr(value, "_repr_html_"):
+                vrprs = value._repr_html_()
+            else:
+                vrprs = repr(value)
 
-                s.write(f"<li><b>{key}</b>: {vrprs}</li>\n")
+            body += f"<li><b>{key}</b>: {vrprs}</li>\n"
 
-            s.write("</ul>\n")
-            s.write("</details>\n")
+        tail = "</ul>\n" "</details>\n"
 
-            html = s.getvalue()
-
-        return html
+        return head + body + tail
 
 
 class Field_File(OpenFoam_File):
@@ -465,38 +490,21 @@ class Case_Directory(Directory):
 
 
 def main():
-    PATH = "/home/edsaa/foam/cavity"
-    d = Case_Directory(PATH)
-
-    print(d.constant.transportProperties)
-    print(d.constant.transportProperties.FoamFile)
-    print(d.constant.transportProperties["nu"])
-
-    print(d.constant.transportProperties["nu"])
-    print(d.system.fvSolution.FoamFile.items())
-
-    # d.system.fvSolution["solvers.p.solver"] = "HEHE"
-
-    # print(d.system.fvSolution["solvers"]["p"]["solver"])
-
-    # print(d.zero.p.dimensions)
-    # for f in d.zero.files:
-    #     print(f, f.dimensions)
-    #     print(f, f.FoamFile)
-
-    # print(d.zero.p.FoamFile)
-    # print(d.zero.U.boundaryField)
-
-    # print(d.zero.files["p"])
-    # print(d.zero.files["p"].case_dir)
-
-    # print(d.zero.files["p"].get_keywords())
-    # print(d.zero.files["p"].get_value_from_foamDictionary("boundaryField"))
-    # print(d.system)
+    pass
 
 
 if __name__ == "__main__":
     main()
 
 else:
+    ## Check that OpenFOAM is installed
     assert "FOAM_APP" in os.environ
+
+    ## Add espuma shell scripts to path
+    if os.name == "posix":
+        os.environ["ESPUMA_SCRIPTS"] = str(
+            (Path(__file__).parent / "scripts").absolute()
+        )
+
+    else:
+        warnings.warn("boundaryProbe parsing script not supported")
