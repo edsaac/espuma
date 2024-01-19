@@ -166,3 +166,4 @@ cython_debug/
 example_*
 .misc
 tests/pytest_*
+.vscode

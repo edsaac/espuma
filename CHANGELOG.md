@@ -2,6 +2,7 @@
 
 ## [v 0.0.8] - 2024-01-
 - Identify zero folder with decimals and raises and exception if multiple valid zero folders are found
+- Organize boundary probes in a single xarray
 
 ## [v 0.0.7] - 2024-01-18
 - Partial refactoring of boundary_probe 
