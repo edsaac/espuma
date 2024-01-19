@@ -1,13 +1,12 @@
-from pathlib import Path
 import xarray as xr
 import numpy as np
-import os
-import subprocess
 from dataclasses import dataclass
+
+import csv
 from itertools import chain
+from io import StringIO
 
 from . import Case_Directory
-
 
 @dataclass(slots=True, frozen=True)
 class Point:
@@ -22,9 +21,12 @@ class Boundary_Probe:
     with pointFiles.sh
     """
 
-    def __init__(self, of_case: Case_Directory):
+    def __init__(self, of_case: Case_Directory, parser_kwargs:dict|None = None):
         ## Generate organized files
-        _boundaryProbes_to_txt(of_case)
+        if parser_kwargs is None:
+            parser_kwargs = {}
+        
+        _boundaryProbes_to_txt(of_case, **parser_kwargs)
 
         ##
         processed_probes_path = of_case.path / "postProcessing/espuma_BoundaryProbes/"
@@ -136,42 +138,67 @@ class Boundary_Probe:
         return f"{type(self).__name__}({self._id})"
 
 
-def _boundaryProbes_to_txt(of_case: Case_Directory):
+def _boundaryProbes_to_txt(of_case: Case_Directory, **parser_kwargs):
     """
-    Run pointFiles.sh on the case to parse the probe data into single files
-
-    Parameterss
+    Parse the probe data into single files. The following files are created:
+            - time.txt
+            - xyz.txt
+            - points_<fields>.xy
+    
+    Parameters
     ----------
     None
 
     Returns
     -------
     None
-
-        The following files are created:
-            - time.txt
-            - xyz.txt
-            - $field.xy
+        
     """
-    if not (of_case.path / "postProcessing/espuma_BoundaryProbes").exists():
-        if "ESPUMA_SCRIPTS" in os.environ and os.name == "posix":
-            script_path = str(Path(os.environ["ESPUMA_SCRIPTS"]) / "pointFiles.sh")
 
-            ## Allow permisions
-            subprocess.run(["chmod", "a+x", script_path])
+    bprbs = of_case.path /"postProcessing/boundaryProbes"
+    outbprs = of_case.path / "postProcessing/espuma_BoundaryProbes"
+    
 
-            command = [
-                script_path,
-                str(of_case.path / "postProcessing/boundaryProbes"),
-                str(of_case.path / "postProcessing/espuma_BoundaryProbes"),
-            ]
+    if not bprbs.exists():
+        raise FileNotFoundError(
+            "{bprbs.name} does not exist. Nothing to parse"
+        )
 
-            value = subprocess.run(command, cwd=of_case.path)
+    if parser_kwargs.get("rebuild", False) or not outbprs.exists():
+        
+        if not outbprs.exists():
+            outbprs.mkdir()
 
-            if value.returncode != 0:
-                raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
+        ## Write times file
+        times = [x for x in bprbs.iterdir() if x.is_dir()]
+        times.sort(key=lambda x:float(x.name))
 
-            print(" ".join(command) + " finished successfully!")
+        with open(outbprs/"time.txt", "w") as out:
+            out.writelines([str(t.name)+'\n' for t in times])
+        
+        ## Write probe locations
+        sample = next(times[1].iterdir())   ## Grab a sample
+        with open(outbprs/"xyz.txt", 'w') as out:
+            with open(sample) as f:
+                for line in f:
+                    coords = line.split()[:3]  
+                    out.write(" ".join(coords) + '\n')
+
+        ## Write the data file 
+        vars = [f.name for f in times[1].iterdir()]
+        for var in vars:
+            with StringIO() as buffer:
+            
+                for t in times:
+                    with open(t / var) as f:
+                        r = csv.reader(f, delimiter="\t")
+                        r = (y[3:] for y in list(r))        ## Gets rid of first three columns
+                        r = chain.from_iterable(r)          ## Make single row
+                        r = " ".join(r).replace("  "," ")   ## Format single space separation
+                        buffer.write(r + '\n')
+
+                with open(outbprs/var, 'w') as f:
+                    f.write(buffer.getvalue())
 
     else:
         print("postProcessing/espuma_BoundaryProbes already exists.")

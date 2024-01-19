@@ -3,6 +3,7 @@
 ## [v 0.0.9] - 2024-01-19
 - Add example based on damBreak tutorial
 - Add setFields command 
+- Rewrite postProcessing sh script parser in python
 
 ## [v 0.0.8] - 2024-01-19
 - Identify zero folder with decimals and raises and exception if multiple valid zero folders are found

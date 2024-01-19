@@ -450,7 +450,6 @@ class Case_Directory(Directory):
 
         print("setFields finished successfully!")
 
-
     def _runCase(self):
         application = self.system.controlDict["application"]
         command = [application]
