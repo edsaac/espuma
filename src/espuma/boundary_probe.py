@@ -23,18 +23,17 @@ class Boundary_Probe:
     """
 
     def __init__(self, of_case: Case_Directory):
-        
         ## Generate organized files
         _boundaryProbes_to_txt(of_case)
 
-        ## 
+        ##
         processed_probes_path = of_case.path / "postProcessing/espuma_BoundaryProbes/"
         self.path_data = list(processed_probes_path.glob("points_*"))
         self.path_time = processed_probes_path / "time.txt"
         self.path_xyz = processed_probes_path / "xyz.txt"
 
         self._id = str(processed_probes_path.relative_to(of_case.path))
-        
+
     @property
     def field_names(self):
         return list(chain.from_iterable(self._field_names))
@@ -68,11 +67,9 @@ class Boundary_Probe:
 
     @property
     def dimensionality(self):
-        
-        dims = [] 
+        dims = []
 
         for nf, data in enumerate(self.path_data):
-        
             with open(data) as f:
                 first_line = f.readline().split()
                 n_cols = len(first_line)
@@ -83,7 +80,7 @@ class Boundary_Probe:
                 dims.append("vector")
             else:
                 raise RuntimeError("Field is neither vector nor scalar.")
-        
+
         return dims
 
     @property
@@ -92,11 +89,9 @@ class Boundary_Probe:
 
     @property
     def array_data(self):
-
         data = dict()
 
         for nf, file_data in enumerate(self.path_data):
-
             full_data = np.loadtxt(file_data).T
 
             if self.dimensionality[nf] == "scalar":
@@ -105,7 +100,9 @@ class Boundary_Probe:
 
             elif self.dimensionality[nf] == "vector":
                 field_names_for_parsing = [
-                    f"{field}{dim}" for field in self._field_names[nf] for dim in [*"xyz"]
+                    f"{field}{dim}"
+                    for field in self._field_names[nf]
+                    for dim in [*"xyz"]
                 ]
                 dimension_number = 3
 
@@ -124,10 +121,14 @@ class Boundary_Probe:
         return (
             f"<b>{self.__repr__()}</b><br>"
             "<dl>\n"
-            + "<dt><i>Fields:</i></dt>\n" 
-            + "<dd>" + ", ".join(self.field_names)  + "</dd>\n"
-            + "<dt><i>Probes:</i></dt>\n" 
-            + "<dd>" + ", ".join([str(p) for p in self.probe_points]) + "</dd>\n"
+            + "<dt><i>Fields:</i></dt>\n"
+            + "<dd>"
+            + ", ".join(self.field_names)
+            + "</dd>\n"
+            + "<dt><i>Probes:</i></dt>\n"
+            + "<dd>"
+            + ", ".join([str(p) for p in self.probe_points])
+            + "</dd>\n"
             + f"<dt><i>Times:</i></dt>\n<dd>From {self.times[0]} to {self.times[-1]} </dd>\n</dl>"
         )
 
@@ -153,7 +154,6 @@ def _boundaryProbes_to_txt(of_case: Case_Directory):
             - $field.xy
     """
     if not (of_case.path / "postProcessing/espuma_BoundaryProbes").exists():
-
         if "ESPUMA_SCRIPTS" in os.environ and os.name == "posix":
             script_path = str(Path(os.environ["ESPUMA_SCRIPTS"]) / "pointFiles.sh")
 
@@ -175,6 +175,7 @@ def _boundaryProbes_to_txt(of_case: Case_Directory):
 
     else:
         print("postProcessing/espuma_BoundaryProbes already exists.")
+
 
 def main():
     pass
