@@ -369,7 +369,19 @@ class Case_Directory(Directory):
     def __init__(self, path: str | Path) -> None:
         super().__init__(path)
 
-        self.zero = Zero_Directory(self.path / "0")
+        # Identify zero folder
+        n_valid_zero_folders = 0
+        for zero in self.path.glob(r"0*"):
+            if float(zero.name) == 0:
+                n_valid_zero_folders += 1
+                
+                if n_valid_zero_folders > 1:
+                    raise FileExistsError("More than one zero folder was found.")
+                
+                self.zero = Zero_Directory(zero)
+            
+
+        
         self.constant = Constant_Directory(self.path / "constant")
         self.system = System_Directory(self.path / "system")
 

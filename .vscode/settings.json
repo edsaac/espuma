@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "0.000/*": "OpenFOAM",
+        "constant/*": "OpenFOAM",
+        "system/*": "OpenFOAM",
+        "boundaryprobes": "cpp"
+    }
+}
