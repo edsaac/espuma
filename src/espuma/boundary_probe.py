@@ -131,7 +131,7 @@ class Boundary_Probe:
             + "<dd>"
             + ", ".join([str(p) for p in self.probe_points])
             + "</dd>\n"
-            + f"<dt><i>Times:</i></dt>\n<dd>From {self.times[0]} to {self.times[-1]} </dd>\n</dl>"
+            + f"<dt><i>Times:</i></dt>\n<dd>From {self.times[0]} to {self.times[-1]} in {len(self.times)} steps</dd>\n</dl>"
         )
 
     def __repr__(self) -> str:
