@@ -1,1 +1,1 @@
-rm -r ./tests/pytest_cavity_base
+rm -r ./pytest_cavity_base

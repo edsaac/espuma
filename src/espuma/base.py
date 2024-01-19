@@ -434,6 +434,23 @@ class Case_Directory(Directory):
 
         print("blockMesh finished successfully!")
 
+    def _setFields(self):
+        command = ["setFields"]
+
+        value = run(command, cwd=self.path)
+
+        if value.returncode != 0:
+            raise OSError(
+                " ".join(command)
+                + "\n\n"
+                + value.stdout.strip()
+                + "\n\n"
+                + value.stderr.strip()
+            )
+
+        print("setFields finished successfully!")
+
+
     def _runCase(self):
         application = self.system.controlDict["application"]
         command = [application]
