@@ -1,5 +1,8 @@
 # Changelog
 
+## [v 0.0.10] - 2024-01-24
+- Add fix to partially deal regex boundary probes (issue #1)
+
 ## [v 0.0.9] - 2024-01-19
 - Add example based on damBreak tutorial
 - Add setFields command 

@@ -5,8 +5,10 @@ from dataclasses import dataclass
 import csv
 from itertools import chain
 from io import StringIO
+from re import findall
 
 from . import Case_Directory
+from .base import Dict_File
 
 @dataclass(slots=True, frozen=True)
 class Point:
@@ -21,7 +23,7 @@ class Boundary_Probe:
     with pointFiles.sh
     """
 
-    def __init__(self, of_case: Case_Directory, parser_kwargs:dict|None = None):
+    def __init__(self, of_case: Case_Directory, probe_dict: Dict_File, parser_kwargs:dict|None = None):
         ## Generate organized files
         if parser_kwargs is None:
             parser_kwargs = {}
@@ -36,6 +38,11 @@ class Boundary_Probe:
 
         self._id = str(processed_probes_path.relative_to(of_case.path))
 
+        ## Currently assuming raw format
+        # TODO: Add functionality for CSV and VTK
+        self._format = probe_dict["setFormat"].strip()
+        self._fields_expression = probe_dict["fields"].strip()
+
     @property
     def field_names(self):
         return list(chain.from_iterable(self._field_names))
@@ -44,7 +51,16 @@ class Boundary_Probe:
     def _field_names(self):
         names = []
         for f in self.path_data:
-            names.append(f.stem.replace("points_", "").split("_"))
+            if '"' not in self._fields_expression:
+                ## Probably not a regex
+                names.append(f.stem.replace("points_", "").split("_"))
+            
+            else:
+                ## It was some OpenFOAM regexpr
+                available = f.stem
+                pattern = self._fields_expression
+                pattern = "_" + pattern.replace('"',"").replace("*","*?").replace(" ","")
+                names.append(findall(pattern, available))
         return names
 
     @property
