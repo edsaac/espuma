@@ -10,6 +10,7 @@ from re import findall
 from . import Case_Directory
 from .base import Dict_File
 
+
 @dataclass(slots=True, frozen=True)
 class Point:
     x: float
@@ -23,11 +24,16 @@ class Boundary_Probe:
     with pointFiles.sh
     """
 
-    def __init__(self, of_case: Case_Directory, probe_dict: Dict_File, parser_kwargs:dict|None = None):
+    def __init__(
+        self,
+        of_case: Case_Directory,
+        probe_dict: Dict_File,
+        parser_kwargs: dict | None = None,
+    ):
         ## Generate organized files
         if parser_kwargs is None:
             parser_kwargs = {}
-        
+
         _boundaryProbes_to_txt(of_case, **parser_kwargs)
 
         ##
@@ -51,15 +57,17 @@ class Boundary_Probe:
     def _field_names(self):
         names = []
         for f in self.path_data:
-            if '"' not in self._fields_expression:
+            if "*" not in self._fields_expression:
                 ## Probably not a regex
                 names.append(f.stem.replace("points_", "").split("_"))
-            
+
             else:
                 ## It was some OpenFOAM regexpr
                 available = f.stem
                 pattern = self._fields_expression
-                pattern = "_" + pattern.replace('"',"").replace("*","*?").replace(" ","")
+                pattern = "_" + pattern.replace('"', "").replace("*", "*?").replace(
+                    " ", ""
+                )
                 names.append(findall(pattern, available))
         return names
 
@@ -126,7 +134,9 @@ class Boundary_Probe:
 
             for i, field in enumerate(field_names_for_parsing):
                 data[field] = xr.DataArray(
-                    full_data[i :: len(self._field_names[nf]) * dimension_number],
+                    full_data[i :: len(self._field_names[nf]) * dimension_number]
+                    if len(field_names_for_parsing) > 1
+                    else [full_data],
                     dims=("probes", "time"),
                     coords={"probes": self.probe_points, "time": self.times},
                 )
@@ -160,7 +170,7 @@ def _boundaryProbes_to_txt(of_case: Case_Directory, **parser_kwargs):
             - time.txt
             - xyz.txt
             - points_<fields>.xy
-    
+
     Parameters
     ----------
     None
@@ -168,52 +178,49 @@ def _boundaryProbes_to_txt(of_case: Case_Directory, **parser_kwargs):
     Returns
     -------
     None
-        
+
     """
 
-    bprbs = of_case.path /"postProcessing/boundaryProbes"
+    bprbs = of_case.path / "postProcessing/boundaryProbes"
     outbprs = of_case.path / "postProcessing/espuma_BoundaryProbes"
-    
 
     if not bprbs.exists():
-        raise FileNotFoundError(
-            "{bprbs.name} does not exist. Nothing to parse"
-        )
+        raise FileNotFoundError("{bprbs.name} does not exist. Nothing to parse")
 
     if parser_kwargs.get("rebuild", False) or not outbprs.exists():
-        
         if not outbprs.exists():
             outbprs.mkdir()
 
         ## Write times file
         times = [x for x in bprbs.iterdir() if x.is_dir()]
-        times.sort(key=lambda x:float(x.name))
+        times.sort(key=lambda x: float(x.name))
 
-        with open(outbprs/"time.txt", "w") as out:
-            out.writelines([str(t.name)+'\n' for t in times])
-        
+        with open(outbprs / "time.txt", "w") as out:
+            out.writelines([str(t.name) + "\n" for t in times])
+
         ## Write probe locations
-        sample = next(times[1].iterdir())   ## Grab a sample
-        with open(outbprs/"xyz.txt", 'w') as out:
+        sample = next(times[1].iterdir())  ## Grab a sample
+        with open(outbprs / "xyz.txt", "w") as out:
             with open(sample) as f:
                 for line in f:
-                    coords = line.split()[:3]  
-                    out.write(" ".join(coords) + '\n')
+                    coords = line.split()[:3]
+                    out.write(" ".join(coords) + "\n")
 
-        ## Write the data file 
+        ## Write the data file
         vars = [f.name for f in times[1].iterdir()]
         for var in vars:
             with StringIO() as buffer:
-            
                 for t in times:
                     with open(t / var) as f:
                         r = csv.reader(f, delimiter="\t")
-                        r = (y[3:] for y in list(r))        ## Gets rid of first three columns
-                        r = chain.from_iterable(r)          ## Make single row
-                        r = " ".join(r).replace("  "," ")   ## Format single space separation
-                        buffer.write(r + '\n')
+                        r = (y[3:] for y in list(r))  ## Gets rid of first three columns
+                        r = chain.from_iterable(r)  ## Make single row
+                        r = " ".join(r).replace(
+                            "  ", " "
+                        )  ## Format single space separation
+                        buffer.write(r + "\n")
 
-                with open(outbprs/var, 'w') as f:
+                with open(outbprs / var, "w") as f:
                     f.write(buffer.getvalue())
 
     else:

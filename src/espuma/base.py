@@ -303,10 +303,10 @@ class Directory:
     def __init__(self, path: str | Path):
         path = Path(path).absolute()
 
-        if not path.exists:
+        if not path.exists():
             raise FileNotFoundError(f"{path} does not exist")
 
-        if not path.is_dir:
+        if not path.is_dir():
             raise NotADirectoryError(f"{path} is not a directory")
 
         self.path = path
