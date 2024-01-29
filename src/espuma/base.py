@@ -22,7 +22,7 @@ run_solver = partial(
     text=True,
     encoding="utf-8",
 )
-### Run as subprocess: ###############################
+######################################################
 
 
 @dataclass(slots=True, frozen=True)
@@ -81,14 +81,14 @@ class OpenFoam_Dict(dict):
 
     def __setitem__(self, key: Any, value: Any) -> None:
         raise NotImplementedError(
-            f"{type(self).__name__} does not accept setting items.\n"
-            "Use the OpenFoam_File __setitem__ instead"
+            f"{type(self).__name__} does not allow setting items directly.\n"
+            "Try setting from an OpenFoam_File instance instead"
         )
 
     def __delitem__(self, key: Any, value: Any) -> None:
         raise NotImplementedError(
-            f"{type(self).__name__} does not allow deleting items.\n"
-            "Use the OpenFoam_File __delitem__ instead"
+            f"{type(self).__name__} does not allow deleting items directly.\n"
+            "Try deleting from an OpenFoam_File instance instead"
         )
 
     def __repr__(self) -> str:
@@ -109,7 +109,11 @@ class OpenFoam_Dict(dict):
         )
 
 
-class File:
+class OpenFoam_File:
+    """
+    Base class for openFOAM files.
+    """
+
     def __init__(self, path: str | Path) -> None:
         path = Path(path)
 
@@ -120,33 +124,25 @@ class File:
             raise FileNotFoundError("Path is not file")
 
         self.path = path
-
+    
     def __str__(self) -> str:
         return str(self.path)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.path})"
-
-
-class OpenFoam_File(File):
-    """
-    Base class for openFOAM files.
-    """
-
-    def __init__(self, path: str | Path) -> None:
-        super().__init__(path)
-
+    
     def __setitem__(self, key: Any, item: Any) -> None:
         self._foamDictionary_set_value(key, item)
+        del self._keywords
 
     def __getitem__(self, key: Any) -> Any:
         # print(f"Calling the {type(self).__name__} getittem for {key}")
         return self.foamDictionary_generate_dict(key)
 
-    def __delitem__(self, key):
-        return self._foamDictionary_del_value(key)
+    def __delitem__(self, key) -> None:
+        self._foamDictionary_del_value(key)
 
-    def _repr_html_(self):
+    def _repr_html_(self) -> str:
         return (
             "<details open>\n"
             f"<summary><b>{self.path.name}</b></summary>\n"
@@ -156,7 +152,7 @@ class OpenFoam_File(File):
             "</details>\n"
         )
 
-    def _foamDictionary_del_value(self, entry):
+    def _foamDictionary_del_value(self, entry) -> None:
         command = [
             "foamDictionary",
             str(self.path),
@@ -167,12 +163,10 @@ class OpenFoam_File(File):
         ]
         value = run(command, cwd=self.path.parent)
 
-        if value.returncode == 0:
-            return value.stdout.strip()
-        else:
+        if value.returncode != 0:
             raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
 
-    def _foamDictionary_get_value(self, entry):
+    def _foamDictionary_get_value(self, entry) -> str:
         command = [
             "foamDictionary",
             str(self.path),
@@ -183,10 +177,11 @@ class OpenFoam_File(File):
         ]
         value = run(command, cwd=self.path.parent)
 
-        if value.returncode == 0:
-            return value.stdout.strip()
-        else:
+        if value.returncode != 0:
             raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
+        
+        return value.stdout.strip()
+        
 
     def foamDictionary_generate_dict(self, entry: Optional[str] = None):
         command = [
@@ -211,7 +206,7 @@ class OpenFoam_File(File):
 
         return foamEntry
 
-    def _foamDictionary_set_value(self, entry, value):
+    def _foamDictionary_set_value(self, entry, value) -> None:
         """
         Entry corresponds to the name.key of the dictionary
         """
@@ -230,7 +225,7 @@ class OpenFoam_File(File):
             raise ValueError(" ".join(command), value.stderr.strip())
 
     def items(self):
-        return [(k, self[k]) for k in self.keys()]
+        return {k: self[k] for k in self.keys()}
 
     def keys(self):
         return self._keywords
@@ -254,7 +249,7 @@ class OpenFoam_File(File):
 
 class Dict_File(OpenFoam_File):
     """
-    Class for openFOAM files than store directories.
+    Class for OpenFOAM files that stores directories.
     """
 
     def __init__(self, path: str | Path):
@@ -295,7 +290,7 @@ class Field_File(OpenFoam_File):
         return self.foamDictionary_generate_dict("boundaryField")
 
     @cached_property
-    def internalField(self):
+    def internalField(self) -> OpenFoam_Dict | str:
         return self.foamDictionary_generate_dict("internalField")
 
 
