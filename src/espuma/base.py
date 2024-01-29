@@ -4,7 +4,7 @@ from pathlib import Path
 from dataclasses import dataclass
 import subprocess
 from functools import partial, cached_property
-from typing import Any
+from typing import Any, Optional
 import os
 from shutil import rmtree
 
@@ -133,11 +133,11 @@ class OpenFoam_File(File):
     Base class for openFOAM files.
     """
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path) -> None:
         super().__init__(path)
 
-    def __setitem__(self, key: Any, item: Any) -> Any:
-        return self._foamDictionary_set_value(key, item)
+    def __setitem__(self, key: Any, item: Any) -> None:
+        self._foamDictionary_set_value(key, item)
 
     def __getitem__(self, key: Any) -> Any:
         # print(f"Calling the {type(self).__name__} getittem for {key}")
@@ -188,7 +188,7 @@ class OpenFoam_File(File):
         else:
             raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
 
-    def foamDictionary_generate_dict(self, entry: str | None = None):
+    def foamDictionary_generate_dict(self, entry: Optional[str] = None):
         command = [
             "foamDictionary",
             str(self.path),

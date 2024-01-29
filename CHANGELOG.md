@@ -1,5 +1,8 @@
 # Changelog
 
+## [v 0.0.12] - 2024-01-29
+- Some type hints
+
 ## [v 0.0.11] - 2024-01-25
 - Set regex identification as `*` present
 - Encapsulate data in list if BoundaryProbe only probes a single field.
