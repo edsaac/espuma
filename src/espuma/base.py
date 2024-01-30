@@ -133,7 +133,9 @@ class OpenFoam_File:
     
     def __setitem__(self, key: Any, item: Any) -> None:
         self._foamDictionary_set_value(key, item)
-        del self._keywords
+        
+        if "_keywords" in self.__dict__:
+            del self._keywords
 
     def __getitem__(self, key: Any) -> Any:
         # print(f"Calling the {type(self).__name__} getittem for {key}")
