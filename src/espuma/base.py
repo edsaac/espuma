@@ -142,15 +142,29 @@ class OpenFoam_File:
     def __delitem__(self, key) -> None:
         self._foamDictionary_del_value(key)
 
-    def _repr_html_(self) -> str:
-        return (
+    def _repr_html_(self):
+        head = (
             "<details open>\n"
-            f"<summary><b>{self.path.name}</b></summary>\n"
-            "<ul style='list-style: none;'>"
-            + "\n".join([f"<li>{k}</li>\n" for k in self.keys()])
-            + "\n</ul>\n"
-            "</details>\n"
+            "<summary style='font-size: 1.0rem; border-bottom: 1px dashed purple; cursor: pointer;'>"
+            f"<span>{self.path.name}</span></summary>\n"
+            f"<p style='font-size: 0.6rem; text-align: right; padding-bottom: -1em; margin-bottom: 0;'>"
+            f"▚ type: {type(self).__name__}</p>"
+            + "<ul style='padding-top: -1rem; margin-top: -1em; margin-bottom: 0.4rem;'>\n"
         )
+
+        body = ""
+        for key, value in self.items():
+            if hasattr(value, "_repr_html_"):
+                vrprs = value._repr_html_()
+            else:
+                vrprs = repr(value)
+
+            body += f"<li><b>{key}</b>: {vrprs}</li>\n"
+
+        tail = "</ul>\n" "</details>\n"
+
+        return head + body + tail
+    
 
     def _foamDictionary_del_value(self, entry) -> None:
         command = [
@@ -225,7 +239,7 @@ class OpenFoam_File:
             raise ValueError(" ".join(command), value.stderr.strip())
 
     def items(self):
-        return {k: self[k] for k in self.keys()}
+        return [(k, self[k]) for k in self.keys()]
 
     def keys(self):
         return self._keywords
@@ -254,26 +268,6 @@ class Dict_File(OpenFoam_File):
 
     def __init__(self, path: str | Path):
         super().__init__(path)
-
-    def _repr_html_(self):
-        head = (
-            "<details open>\n"
-            f"<summary><b>{self.path.name}</b></summary>\n"
-            "<ul style='list-style: none;'>\n"
-        )
-
-        body = ""
-        for key, value in self.items():
-            if hasattr(value, "_repr_html_"):
-                vrprs = value._repr_html_()
-            else:
-                vrprs = repr(value)
-
-            body += f"<li><b>{key}</b>: {vrprs}</li>\n"
-
-        tail = "</ul>\n" "</details>\n"
-
-        return head + body + tail
 
 
 class Field_File(OpenFoam_File):
@@ -315,11 +309,14 @@ class Directory:
     def _repr_html_(self):
         return (
             "<details open>\n"
-            f"<summary><b>{self.path.name}</b></summary>\n"
-            "<ul>"
+            + "<summary style='font-size: 1.0rem; border-bottom: 1px solid purple; cursor: pointer;'>"
+            + f"<b>{self.path.name}</b>"
+            + "</summary>\n"
+            + f"<p style='font-size: 0.6rem; text-align: right; padding-bottom: -1em; margin-bottom: 0;'>▚ type: {type(self).__name__}</p>"
+            + "<ul style='padding-top: -1rem; margin-top: -1em; margin-bottom: 0.4rem;'>"
             + "\n".join([f"<li>{f.name}</li>\n" for f in self._files])
             + "\n</ul>\n"
-            "</details>\n"
+            + "</details>\n"
         )
 
     @property
@@ -381,7 +378,8 @@ class Case_Directory(Directory):
     def _repr_html_(self):
         return (
             "<details open>\n"
-            f"<summary><b>{self.path.name}</b></summary>\n"
+            "<summary style='font-size: 1.0rem; border-bottom: none; cursor: pointer;'>"
+            f"<em>{self.path.name}</em></summary>\n"
             "<ul style='list-style: none;'>\n"
             "<li>" + self.zero._repr_html_() + "</li>\n"
             "<li>" + self.constant._repr_html_() + "</li>\n"
