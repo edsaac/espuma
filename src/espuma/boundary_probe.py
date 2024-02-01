@@ -184,6 +184,10 @@ def _boundaryProbes_to_txt(of_case: Case_Directory, **parser_kwargs):
     bprbs = of_case.path / "postProcessing/boundaryProbes"
     outbprs = of_case.path / "postProcessing/espuma_BoundaryProbes"
 
+    if parser_kwargs.get("rebuild", False) and outbprs.exists():
+        print(f"{outbprs.name} already exists :)")
+        return None
+    
     if not bprbs.exists():
         raise FileNotFoundError("{bprbs.name} does not exist. Nothing to parse")
 

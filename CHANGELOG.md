@@ -2,6 +2,8 @@
 
 ## [v 0.0.12] - 2024-01-29
 - Some type hints
+- BoundaryProbe checks if data was processed before and it is stored
+in the espuma postprocessing folder.  
 
 ## [v 0.0.11] - 2024-01-25
 - Set regex identification as `*` present
