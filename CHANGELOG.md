@@ -1,4 +1,6 @@
 # Changelog
+## [v 0.0.12] - 2024-02-01
+- Boundary probe bug 
 
 ## [v 0.0.12] - 2024-01-29
 - Some type hints
