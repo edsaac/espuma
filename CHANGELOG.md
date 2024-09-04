@@ -1,5 +1,9 @@
 # Changelog
-## [v 0.0.12] - 2024-02-01
+## [v 0.0.14] - 2024-09-04
+- `BoundaryProbe` supports CVS format. Raw format dropped.
+- Add `BoundaryProbe` tests.
+
+## [v 0.0.13] - 2024-02-01
 - Boundary probe bug 
 
 ## [v 0.0.12] - 2024-01-29

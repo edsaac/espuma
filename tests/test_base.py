@@ -113,18 +113,18 @@ def test_setters():
 
 
 def test_run_solver():
-
-    ## If is none, means that ended with code 0
+    ## If it's none, means that ended with code 0
     assert of_case._blockMesh() is None
 
     assert of_case.is_finished() is False
-    
-    ## If is none, means that ended with code 0
+
+    ## If it's none, means that ended with code 0
     assert of_case._runCase() is None
 
     assert all(t in of_case.list_times for t in [0.1, 0.2, 0.3, 0.4, 0.5])
 
     assert of_case.is_finished() is True
+
 
 def test_vtk_import():
     assert of_case.get_vtk_reader()

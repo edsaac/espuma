@@ -4,31 +4,24 @@ build-backend = "hatchling.build"
 
 [project]
 name = "espuma"
-version = "0.0.12"
+version = "0.0.14"
 authors = [
-  { name="Edwin Saavedra C.", email="esaavedrac@u.northwestern.edu" },
+    { name = "Edwin Saavedra C.", email = "esaavedrac@u.northwestern.edu" },
 ]
 description = "Utilities for OpenFOAM in Python"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
-dependencies = [
-    "numpy",
-    "xarray",
-]
+dependencies = ["numpy", "xarray"]
 
 [project.urls]
 "Homepage" = "https://github.com/edsaac/foamy"
 "Bug Tracker" = "https://github.com/edsaac/foamy/issues"
 
 [tool.hatch.build]
-exclude = [
-    "/tests",
-    "/examples",
-    ".gitignore",
-]
+exclude = ["/tests", "/examples", ".gitignore"]

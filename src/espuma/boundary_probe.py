@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import csv
 from itertools import chain
 from io import StringIO
-from re import findall
 
 from . import Case_Directory
 from .base import Dict_File
@@ -19,11 +18,6 @@ class Point:
 
 
 class Boundary_Probe:
-    """
-    Assumes that the contents of postProcessing probes have been parsed already
-    with pointFiles.sh
-    """
-
     def __init__(
         self,
         of_case: Case_Directory,
@@ -34,49 +28,43 @@ class Boundary_Probe:
         if parser_kwargs is None:
             parser_kwargs = {}
 
-        _boundaryProbes_to_txt(of_case, **parser_kwargs)
+        self._boundaryProbes_to_txt(of_case, **parser_kwargs)
 
-        ##
         processed_probes_path = of_case.path / "postProcessing/espuma_BoundaryProbes/"
         self.path_data = list(processed_probes_path.glob("points_*"))
         self.path_time = processed_probes_path / "time.txt"
         self.path_xyz = processed_probes_path / "xyz.txt"
+        self.path_field_names = processed_probes_path / "fields.txt"
 
         self._id = str(processed_probes_path.relative_to(of_case.path))
 
-        ## Currently assuming raw format
         # TODO: Add functionality for CSV and VTK
         self._format = probe_dict["setFormat"].strip()
+
+        if self._format != "csv":
+            raise NotImplementedError(
+                f"Only csv format is currently supported. Got {self._format}"
+            )
+
         self._fields_expression = probe_dict["fields"].strip()
 
     @property
-    def field_names(self):
+    def field_names(self) -> list[str]:
         return list(chain.from_iterable(self._field_names))
 
     @property
-    def _field_names(self):
-        names = []
-        for f in self.path_data:
-            if "*" not in self._fields_expression:
-                ## Probably not a regex
-                names.append(f.stem.replace("points_", "").split("_"))
+    def _field_names(self) -> list[list[str]]:
+        with open(self.path_field_names) as f:
+            names = f.readlines()
 
-            else:
-                ## It was some OpenFOAM regexpr
-                available = f.stem
-                pattern = self._fields_expression
-                pattern = "_" + pattern.replace('"', "").replace("*", "*?").replace(
-                    " ", ""
-                )
-                names.append(findall(pattern, available))
-        return names
+        return [name.strip().split() for name in names]
 
     @property
-    def _n_fields(self):
-        return [len(field_name) for field_name in self._field_names]
+    def _n_fields(self) -> list[int]:
+        return [len(_field_name) for _field_name in self._field_names]
 
     @property
-    def n_fields(self):
+    def n_fields(self) -> int:
         return sum(self._n_fields)
 
     @property
@@ -92,24 +80,6 @@ class Boundary_Probe:
         return len(self.probe_points)
 
     @property
-    def dimensionality(self):
-        dims = []
-
-        for nf, data in enumerate(self.path_data):
-            with open(data) as f:
-                first_line = f.readline().split()
-                n_cols = len(first_line)
-
-            if n_cols == self.n_probes * self._n_fields[nf]:
-                dims.append("scalar")
-            elif n_cols == 3 * self.n_probes * self._n_fields[nf]:
-                dims.append("vector")
-            else:
-                raise RuntimeError("Field is neither vector nor scalar.")
-
-        return dims
-
-    @property
     def times(self):
         return np.loadtxt(self.path_time)
 
@@ -117,26 +87,14 @@ class Boundary_Probe:
     def array_data(self):
         data = dict()
 
-        for nf, file_data in enumerate(self.path_data):
+        for file_data, field_names, stride in zip(
+            self.path_data, self._field_names, self._n_fields
+        ):
             full_data = np.loadtxt(file_data).T
 
-            if self.dimensionality[nf] == "scalar":
-                field_names_for_parsing = self._field_names[nf]
-                dimension_number = 1
-
-            elif self.dimensionality[nf] == "vector":
-                field_names_for_parsing = [
-                    f"{field}{dim}"
-                    for field in self._field_names[nf]
-                    for dim in [*"xyz"]
-                ]
-                dimension_number = 3
-
-            for i, field in enumerate(field_names_for_parsing):
+            for i, field in enumerate(field_names):
                 data[field] = xr.DataArray(
-                    full_data[i :: len(self._field_names[nf]) * dimension_number]
-                    if len(field_names_for_parsing) > 1
-                    else [full_data],
+                    full_data[i::stride] if stride > 1 else [full_data],
                     dims=("probes", "time"),
                     coords={"probes": self.probe_points, "time": self.times},
                 )
@@ -163,72 +121,83 @@ class Boundary_Probe:
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._id})"
 
+    def _boundaryProbes_to_txt(self, of_case: Case_Directory, **parser_kwargs):
+        """
+        Parse the probe data into single files. The following files are created:
+                - time.txt
+                - xyz.txt
+                - data.txt
+                - fields.txt
 
-def _boundaryProbes_to_txt(of_case: Case_Directory, **parser_kwargs):
-    """
-    Parse the probe data into single files. The following files are created:
-            - time.txt
-            - xyz.txt
-            - points_<fields>.xy
+        Parameters
+        ----------
+        None
 
-    Parameters
-    ----------
-    None
+        Returns
+        -------
+        None
 
-    Returns
-    -------
-    None
+        """
 
-    """
+        bprbs = of_case.path / "postProcessing/boundaryProbes"
+        outbprs = of_case.path / "postProcessing/espuma_BoundaryProbes"
 
-    bprbs = of_case.path / "postProcessing/boundaryProbes"
-    outbprs = of_case.path / "postProcessing/espuma_BoundaryProbes"
+        if not parser_kwargs.get("rebuild", False) and outbprs.exists():
+            print(f"{outbprs.name} already exists :)")
+            return None
 
-    if not parser_kwargs.get("rebuild", False) and outbprs.exists():
-        print(f"{outbprs.name} already exists :)")
-        return None
-    
-    if not bprbs.exists():
-        raise FileNotFoundError(f"{bprbs.name} does not exist. Nothing to parse")
+        if not bprbs.exists():
+            raise FileNotFoundError(f"{bprbs.name} does not exist. Nothing to parse")
 
-    if parser_kwargs.get("rebuild", False) or not outbprs.exists():
-        if not outbprs.exists():
-            outbprs.mkdir()
+        if parser_kwargs.get("rebuild", False) or not outbprs.exists():
+            if not outbprs.exists():
+                outbprs.mkdir()
 
-        ## Write times file
-        times = [x for x in bprbs.iterdir() if x.is_dir()]
-        times.sort(key=lambda x: float(x.name))
+            ## Write times file
+            times = [x for x in bprbs.iterdir() if x.is_dir()]
+            times.sort(key=lambda x: float(x.name))
 
-        with open(outbprs / "time.txt", "w") as out:
-            out.writelines([str(t.name) + "\n" for t in times])
+            with open(outbprs / "time.txt", "w") as out:
+                out.writelines([str(t.name) + "\n" for t in times])
 
-        ## Write probe locations
-        sample = next(times[1].iterdir())  ## Grab a sample
-        with open(outbprs / "xyz.txt", "w") as out:
-            with open(sample) as f:
-                for line in f:
-                    coords = line.split()[:3]
-                    out.write(" ".join(coords) + "\n")
+            ## Write probe locations
+            sample = next(times[1].iterdir())  ## Grab a sample
 
-        ## Write the data file
-        vars = [f.name for f in times[1].iterdir()]
-        for var in vars:
-            with StringIO() as buffer:
-                for t in times:
-                    with open(t / var) as f:
-                        r = csv.reader(f, delimiter="\t")
-                        r = (y[3:] for y in list(r))  ## Gets rid of first three columns
-                        r = chain.from_iterable(r)  ## Make single row
-                        r = " ".join(r).replace(
-                            "  ", " "
-                        )  ## Format single space separation
-                        buffer.write(r + "\n")
+            with open(outbprs / "xyz.txt", "w") as out:
+                with open(sample) as f:
+                    f.readline()  ## Skip header
 
-                with open(outbprs / var, "w") as f:
-                    f.write(buffer.getvalue())
+                    for line in f:
+                        coords = line.split(",")[:3]
+                        out.write(" ".join(coords) + "\n")
 
-    else:
-        print("postProcessing/espuma_BoundaryProbes already exists.")
+            ## Write the fields name file
+            with open(outbprs / "fields.txt", "w") as out:
+                for point_file in times[1].iterdir():
+                    with open(point_file) as f:
+                        out.write(" ".join(f.readline().split(",")[3:]))
+
+            ## Write the data file
+            vars = [f.name for f in times[1].iterdir()]
+            for var in vars:
+                with StringIO() as buffer:
+                    for time in times:
+                        with open(time / var) as f:
+                            r = csv.reader(f, delimiter=",")
+                            r = (
+                                y[3:] for y in list(r)[1:]
+                            )  ## Gets rid of first three columns
+                            r = chain.from_iterable(r)  ## Make single row (drop first)
+                            r = " ".join(r).replace(
+                                "  ", " "
+                            )  ## Format single space separation
+                            buffer.write(r + "\n")
+
+                    with open(outbprs / var, "w") as f:
+                        f.write(buffer.getvalue())
+
+        else:
+            print("postProcessing/espuma_BoundaryProbes already exists.")
 
 
 def main():
