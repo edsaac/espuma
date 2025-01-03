@@ -1,4 +1,7 @@
 # Changelog
+## [v 0.0.15] - 2025-01-03
+- Add `export_to_xarray` method to export results of a line probeas a single xarray dataset
+
 ## [v 0.0.14] - 2024-09-04
 - `BoundaryProbe` supports CVS format. Raw format dropped.
 - Add `BoundaryProbe` tests.

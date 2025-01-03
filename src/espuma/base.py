@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from pathlib import Path
-from dataclasses import dataclass
 import subprocess
-from functools import partial, cached_property
-from typing import Any, Optional
 import os
-from shutil import rmtree
 
 from math import isclose
+from pathlib import Path
+from dataclasses import dataclass
+from functools import partial, cached_property
+from typing import Any, Optional
+from shutil import rmtree
+
+import numpy as np
+import xarray as xr
+import pyvista as pv
 from pyvista import POpenFOAMReader
 
 import warnings
@@ -103,7 +107,10 @@ class OpenFoam_Dict(dict):
         return (
             "<ul>\n"
             + "".join(
-                [f"<li><b>{k}:</b> {v}</li>\n" for k, v in zip(self.keys(), vreprs)]
+                [
+                    f"<li><b>{k}:</b> {v}</li>\n"
+                    for k, v in zip(self.keys(), vreprs)
+                ]
             )
             + "</ul>"
         )
@@ -124,16 +131,16 @@ class OpenFoam_File:
             raise FileNotFoundError("Path is not file")
 
         self.path = path
-    
+
     def __str__(self) -> str:
         return str(self.path)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.path})"
-    
+
     def __setitem__(self, key: Any, item: Any) -> None:
         self._foamDictionary_set_value(key, item)
-        
+
         if "_keywords" in self.__dict__:
             del self._keywords
 
@@ -166,7 +173,6 @@ class OpenFoam_File:
         tail = "</ul>\n" "</details>\n"
 
         return head + body + tail
-    
 
     def _foamDictionary_del_value(self, entry) -> None:
         command = [
@@ -195,9 +201,8 @@ class OpenFoam_File:
 
         if value.returncode != 0:
             raise ValueError(" ".join(command) + "\n\n" + value.stderr.strip())
-        
+
         return value.stdout.strip()
-        
 
     def foamDictionary_generate_dict(self, entry: Optional[str] = None):
         command = [
@@ -370,7 +375,9 @@ class Case_Directory(Directory):
                 n_valid_zero_folders += 1
 
                 if n_valid_zero_folders > 1:
-                    raise FileExistsError("More than one zero folder was found.")
+                    raise FileExistsError(
+                        "More than one zero folder was found."
+                    )
 
                 self.zero = Zero_Directory(zero)
 
@@ -474,19 +481,105 @@ class Case_Directory(Directory):
 
         print(" ".join(command) + " finished successfully!")
 
+    def export_to_xarray(self, ignore_initial_time: bool = True):
+        """
+        Export 1D result as a single xarray dataset.
+        Requires xarray and pyvista.
+        """
+
+        path_to_nc = self.path / "postProcessing/espuma_as_netcdf"
+        path_to_nc.mkdir(exist_ok=True)
+        nc_file = path_to_nc / "results.nc"
+
+        if nc_file.exists():
+            return xr.open_dataset(nc_file, engine="netcdf4")
+
+        ## Read each time folder in Foam results
+        reader = self.get_vtk_reader()
+        stacked: dict[str, pv.PolyData] = {}
+
+        ts = slice(1, None) if ignore_initial_time else slice(None)
+
+        for t in reader.time_values[ts]:
+            reader.set_active_time_value(t)
+            mesh = reader.read()  # <- Read the data
+            internalMesh = mesh["internalMesh"]
+
+            (xi, yi, zi, xf, yf, zf) = internalMesh.bounds
+
+            initial_point = [xi, yi, zi]
+            end_point = [xi, yi, zf]
+
+            line_probe = internalMesh.sample_over_line(
+                initial_point, end_point
+            )
+            stacked[f"{t:.2f}"] = line_probe
+
+        ## Flatten vector data to separate 1D arrays
+        expanded: dict[str, dict[str, np.ndarray]] = {}
+
+        for t, x in stacked.items():
+            expanded[t] = {}
+
+            for name in x.array_names:
+                if "vtk" not in name:
+                    if len(x[name].shape) > 1:
+                        for j in range(x[name].shape[1]):
+                            expanded[t][name + "_" + str(j)] = x[name][:, j]
+                    else:
+                        expanded[t][name] = x[name]
+
+        ## Convert to bare np and stack results as (time, depth)
+        to_stack = []
+
+        for x in expanded.values():
+            to_stack.append(np.stack([v for v in x.values()], axis=-1))
+
+        complete = np.stack(to_stack, axis=-1)
+
+        # Metadata
+        times = [float(t) for t in expanded.keys()]
+        for x in expanded.values():
+            variables = x.keys()
+            distance = x["Distance"]
+            break
+
+        ## Assemble xarrays
+        xars = {}
+
+        for i, variable in enumerate(variables):
+            a = complete[:, i, :]
+            xars[variable] = xr.DataArray(
+                a,
+                dims=("depth", "time"),
+                coords={"depth": distance, "time": times},
+            )
+
+        ## Combine into single dataset and save
+        xdset = xr.Dataset(xars)
+        xdset.to_netcdf(nc_file)
+
+        return xdset
+
     @classmethod
     def clone_from_template(
-        cls, template: Case_Directory, path: str | Path, overwrite: bool = False
+        cls,
+        template: Case_Directory,
+        path: str | Path,
+        overwrite: bool = False,
     ):
         if not isinstance(template, Case_Directory):
-            raise TypeError(f"{template} must be a espuma.Case_Directory object")
+            raise TypeError(
+                f"{template} must be a espuma.Case_Directory object"
+            )
 
         path = Path(path)
 
         if path.exists():
             if not overwrite:
                 raise OSError(
-                    f"{path} already exists.\n" "Maybe you want to set overwrite=True?"
+                    f"{path} already exists.\n"
+                    "Maybe you want to set overwrite=True?"
                 )
 
             if path.is_dir():
