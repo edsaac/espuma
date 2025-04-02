@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from functools import partial, cached_property
 from typing import Any, Optional
 from shutil import rmtree
+from shlex import split as shsplit
 
 import numpy as np
 import xarray as xr
@@ -42,14 +43,7 @@ class Dimension:
     @classmethod
     def from_bracketed(cls, text: str):
         return Dimension(
-            *[
-                int(d)
-                for d in text.strip()
-                .removeprefix("[")
-                .removesuffix("]")
-                .strip()
-                .split()
-            ]
+            *[int(d) for d in text.strip().removeprefix("[").removesuffix("]").strip().split()]
         )
 
     def __str__(self) -> str:
@@ -59,11 +53,7 @@ class Dimension:
         return (
             f"{type(self).__name__}("
             + ", ".join(
-                [
-                    f"{k}={getattr(self, k)}"
-                    for k in self.__slots__
-                    if getattr(self, k) != 0
-                ]
+                [f"{k}={getattr(self, k)}" for k in self.__slots__ if getattr(self, k) != 0]
             )
             + ")"
         )
@@ -99,19 +89,11 @@ class OpenFoam_Dict(dict):
         return super().__repr__()
 
     def _repr_html_(self) -> str:
-        vreprs = [
-            v._repr_html_() if hasattr(v, "_repr_html_") else str(v)
-            for v in self.values()
-        ]
+        vreprs = [v._repr_html_() if hasattr(v, "_repr_html_") else str(v) for v in self.values()]
 
         return (
             "<ul>\n"
-            + "".join(
-                [
-                    f"<li><b>{k}:</b> {v}</li>\n"
-                    for k, v in zip(self.keys(), vreprs)
-                ]
-            )
+            + "".join([f"<li><b>{k}:</b> {v}</li>\n" for k, v in zip(self.keys(), vreprs)])
             + "</ul>"
         )
 
@@ -170,7 +152,7 @@ class OpenFoam_File:
 
             body += f"<li><b>{key}</b>: {vrprs}</li>\n"
 
-        tail = "</ul>\n" "</details>\n"
+        tail = "</ul>\n</details>\n"
 
         return head + body + tail
 
@@ -375,9 +357,7 @@ class Case_Directory(Directory):
                 n_valid_zero_folders += 1
 
                 if n_valid_zero_folders > 1:
-                    raise FileExistsError(
-                        "More than one zero folder was found."
-                    )
+                    raise FileExistsError("More than one zero folder was found.")
 
                 self.zero = Zero_Directory(zero)
 
@@ -420,39 +400,33 @@ class Case_Directory(Directory):
 
         return isclose(end_time, latest_time)
 
-    def _blockMesh(self):
+    def _blockMesh(self, verbose: bool = False):
         command = ["blockMesh"]
 
         value = run(command, cwd=self.path)
 
         if value.returncode != 0:
             raise OSError(
-                " ".join(command)
-                + "\n\n"
-                + value.stdout.strip()
-                + "\n\n"
-                + value.stderr.strip()
+                " ".join(command) + "\n\n" + value.stdout.strip() + "\n\n" + value.stderr.strip()
             )
 
-        print("blockMesh finished successfully!")
+        if verbose:
+            print("blockMesh finished successfully!")
 
-    def _setFields(self):
+    def _setFields(self, verbose: bool = False):
         command = ["setFields"]
 
         value = run(command, cwd=self.path)
 
         if value.returncode != 0:
             raise OSError(
-                " ".join(command)
-                + "\n\n"
-                + value.stdout.strip()
-                + "\n\n"
-                + value.stderr.strip()
+                " ".join(command) + "\n\n" + value.stdout.strip() + "\n\n" + value.stderr.strip()
             )
 
-        print("setFields finished successfully!")
+        if verbose:
+            print("setFields finished successfully!")
 
-    def _runCase(self):
+    def _runCase(self, verbose: bool = False):
         application = self.system.controlDict["application"]
         command = [application]
 
@@ -461,7 +435,8 @@ class Case_Directory(Directory):
         if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
 
-        print(f"{application} finished successfully!")
+        if verbose:
+            print(f"{application} finished successfully!")
 
     def _foamListTimes(self):
         command = ["foamListTimes", "-withZero"]
@@ -472,14 +447,15 @@ class Case_Directory(Directory):
 
         return value.stdout.strip().splitlines()
 
-    def _foamListTimes_remove(self):
+    def _foamListTimes_remove(self, verbose: bool = False):
         command = ["foamListTimes", "-rm"]
         value = run(command, cwd=self.path)
 
         if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
 
-        print(" ".join(command) + " finished successfully!")
+        if verbose:
+            print(" ".join(command) + " finished successfully!")
 
     def export_to_xarray(self, ignore_initial_time: bool = True):
         """
@@ -510,9 +486,7 @@ class Case_Directory(Directory):
             initial_point = [xi, yi, zi]
             end_point = [xi, yi, zf]
 
-            line_probe = internalMesh.sample_over_line(
-                initial_point, end_point
-            )
+            line_probe = internalMesh.sample_over_line(initial_point, end_point)
             stacked[f"{t:.2f}"] = line_probe
 
         ## Flatten vector data to separate 1D arrays
@@ -569,18 +543,13 @@ class Case_Directory(Directory):
         overwrite: bool = False,
     ):
         if not isinstance(template, Case_Directory):
-            raise TypeError(
-                f"{template} must be a espuma.Case_Directory object"
-            )
+            raise TypeError(f"{template} must be a espuma.Case_Directory object")
 
         path = Path(path)
 
         if path.exists():
             if not overwrite:
-                raise OSError(
-                    f"{path} already exists.\n"
-                    "Maybe you want to set overwrite=True?"
-                )
+                raise OSError(f"{path} already exists.\nMaybe you want to set overwrite=True?")
 
             if path.is_dir():
                 rmtree(path)
@@ -593,14 +562,20 @@ class Case_Directory(Directory):
         return Case_Directory(path)
 
     @classmethod
-    def _foamCloneCase(cls, source_case: str | Path, target_case: str | Path):
-        command = ["foamCloneCase", str(source_case), str(target_case)]
-        value = run(command)
+    def _foamCloneCase(
+        cls,
+        source_case: str | Path,
+        target_case: str | Path,
+        verbose: bool = False,
+    ):
+        command = f"""foamCloneCase "{str(source_case)}" "{str(target_case)}" """
+        value = run(shsplit(command))
 
         if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())
 
-        print(" ".join(command) + " finished successfully!")
+        if verbose:
+            print(" ".join(command) + " finished successfully!")
 
 
 def main():
@@ -616,9 +591,7 @@ else:
 
     ## Add espuma shell scripts to path
     if os.name == "posix":
-        os.environ["ESPUMA_SCRIPTS"] = str(
-            (Path(__file__).parent / "scripts").absolute()
-        )
+        os.environ["ESPUMA_SCRIPTS"] = str((Path(__file__).parent / "scripts").absolute())
 
     else:
         warnings.warn("boundaryProbe parsing script not supported")
