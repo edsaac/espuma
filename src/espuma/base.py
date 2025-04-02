@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from functools import partial, cached_property
 from typing import Any, Optional
 from shutil import rmtree
-from shlex import split as shsplit
 
 import numpy as np
 import xarray as xr
@@ -568,8 +567,8 @@ class Case_Directory(Directory):
         target_case: str | Path,
         verbose: bool = False,
     ):
-        command = f"""foamCloneCase "{str(source_case)}" "{str(target_case)}" """
-        value = run(shsplit(command))
+        command = ["foamCloneCase", f'"{str(source_case)}"', '"{str(target_case)}"']
+        value = run(command)
 
         if value.returncode != 0:
             raise OSError(" ".join(command) + "\n\n" + value.stderr.strip())

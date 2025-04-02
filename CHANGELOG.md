@@ -1,4 +1,7 @@
 # Changelog
+## [v 0.0.16] - 2025-04-02
+- Revert in clone_from_template
+
 ## [v 0.0.15] - 2025-04-02
 - Add `export_to_xarray` method to export results of a line probeas a single xarray dataset
 - Use `shlex.split` to parse shell commands in clone_from_template
